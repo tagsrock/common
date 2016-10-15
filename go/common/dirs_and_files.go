@@ -1,11 +1,11 @@
 package common
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -21,7 +21,6 @@ var (
 	ErisContainerRoot = "/home/eris/.eris" // XXX: this is used as root in the `eris/base` image
 
 	// Major Directories
-	ActionsPath  = filepath.Join(ErisRoot, "actions")
 	AppsPath     = filepath.Join(ErisRoot, "apps") // previously "dapps"
 	BundlesPath  = filepath.Join(ErisRoot, "bundles")
 	ChainsPath   = filepath.Join(ErisRoot, "chains") // previously "blockchains"
@@ -32,14 +31,13 @@ var (
 
 	// Chains Directories
 	HEAD             = filepath.Join(ChainsPath, "HEAD")
-	DefaultChainPath = filepath.Join(ChainsPath, "default")
 	AccountsTypePath = filepath.Join(ChainsPath, "account-types")
 	ChainTypePath    = filepath.Join(ChainsPath, "chain-types")
 
 	// Keys Directories
 	KeysDataPath      = filepath.Join(KeysPath, "data")
 	KeysNamesPath     = filepath.Join(KeysPath, "names")
-	KeysContainerPath = filepath.Join(ErisContainerRoot, "keys", "data")
+	KeysContainerPath = path.Join(ErisContainerRoot, "keys", "data")
 
 	// Scratch Directories (basically eris' cache) (globally coordinated)
 	DataContainersPath   = filepath.Join(ScratchPath, "data")
@@ -47,9 +45,6 @@ var (
 	LllcScratchPath      = filepath.Join(LanguagesScratchPath, "lllc")
 	SolcScratchPath      = filepath.Join(LanguagesScratchPath, "sol")
 	SerpScratchPath      = filepath.Join(LanguagesScratchPath, "ser")
-
-	// Services Directories
-	PersonalServicesPath = filepath.Join(ServicesPath, "global")
 
 	// Deprecated Directories (remove on 0.12 release)
 	BlockchainsPath = filepath.Join(ErisRoot, "blockchains")
@@ -59,11 +54,9 @@ var (
 
 var MajorDirs = []string{
 	ErisRoot,
-	ActionsPath,
 	AppsPath,
 	BundlesPath,
 	ChainsPath,
-	DefaultChainPath,
 	AccountsTypePath,
 	ChainTypePath,
 	KeysPath,
@@ -77,49 +70,15 @@ var MajorDirs = []string{
 	SolcScratchPath,
 	SerpScratchPath,
 	ServicesPath,
-	PersonalServicesPath,
 }
 
-// These should only be used by specific tooling rather than eris-cli level
-var ChainsDirs = []string{
-	ChainsPath,
-	DefaultChainPath,
-	AccountsTypePath,
-	ChainTypePath,
-}
-
-// These should only be used by specific tooling rather than eris-cli level
-var KeysDirs = []string{
-	KeysPath,
-	KeysDataPath,
-	KeysNamesPath,
-}
-
-// These should only be used by specific tooling rather than eris-cli level
-var ServicesDirs = []string{
-	ServicesPath,
-	PersonalServicesPath,
-}
-
-// These should only be used by specific tooling rather than eris-cli level
-var ScratchDirs = []string{
-	ScratchPath,
-	DataContainersPath,
-	LanguagesScratchPath,
-	LllcScratchPath,
-	SolcScratchPath,
-	SerpScratchPath,
-}
-
-//eris update checks if old dirs exist & migrates them
+// DirsToMigrate is used by the `eris init` command to check
+// if old dirs exist to migrate them.
 var DirsToMigrate = map[string]string{
 	BlockchainsPath: ChainsPath,
 	DappsPath:       AppsPath,
 	LanguagesPath:   LanguagesScratchPath,
 }
-
-//---------------------------------------------
-// user and process
 
 func HomeDir() string {
 	if runtime.GOOS == "windows" {
@@ -134,25 +93,35 @@ func HomeDir() string {
 	}
 }
 
-func Exit(err error) {
-	status := 0
-	if err != nil {
-		fmt.Println(err)
-		status = 1
+// ChangeErisRoot points the root of the Eris settings hierarchy
+// to the erisDir location.
+func ChangeErisRoot(erisDir string) {
+	if os.Getenv("TESTING") == "true" {
+		return
 	}
-	os.Exit(status)
-}
 
-func IfExit(err error) {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
+	ErisRoot = erisDir
 
-// user and process
-//---------------------------------------------------------------------------
-// filesystem
+	// Major directories.
+	AppsPath = filepath.Join(ErisRoot, "apps")     // previously "dapps"
+	ChainsPath = filepath.Join(ErisRoot, "chains") // previously "blockchains"
+	KeysPath = filepath.Join(ErisRoot, "keys")
+	RemotesPath = filepath.Join(ErisRoot, "remotes")
+	ScratchPath = filepath.Join(ErisRoot, "scratch")
+	ServicesPath = filepath.Join(ErisRoot, "services")
+
+	// Chains Directories
+	AccountsTypePath = filepath.Join(ChainsPath, "account-types")
+	ChainTypePath = filepath.Join(ChainsPath, "chain-types")
+
+	// Keys Directories
+	KeysDataPath = filepath.Join(KeysPath, "data")
+	KeysNamesPath = filepath.Join(KeysPath, "names")
+
+	// Scratch Directories (basically eris' cache) (globally coordinated)
+	DataContainersPath = filepath.Join(ScratchPath, "data")
+	LanguagesScratchPath = filepath.Join(ScratchPath, "languages") // previously "~/.eris/languages"
+}
 
 func AbsolutePath(Datadir string, filename string) string {
 	if filepath.IsAbs(filename) {
@@ -193,7 +162,25 @@ func ResolveErisRoot() string {
 
 // Create the default eris tree
 func InitErisDir() (err error) {
-	for _, d := range MajorDirs {
+	for _, d := range []string{
+		ErisRoot,
+		AppsPath,
+		BundlesPath,
+		ChainsPath,
+		AccountsTypePath,
+		ChainTypePath,
+		KeysPath,
+		KeysDataPath,
+		KeysNamesPath,
+		RemotesPath,
+		ScratchPath,
+		DataContainersPath,
+		LanguagesScratchPath,
+		LllcScratchPath,
+		SolcScratchPath,
+		SerpScratchPath,
+		ServicesPath,
+	} {
 		err := InitDataDir(d)
 		if err != nil {
 			return err
@@ -306,10 +293,6 @@ func WriteFile(data, path string) error {
 	writer.Write([]byte(data))
 	return nil
 }
-
-// filesystem
-//-------------------------------------------------------
-// open text editors
 
 func Editor(file string) error {
 	editr := os.Getenv("EDITOR")
