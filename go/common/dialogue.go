@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	
-	log "github.com/eris-ltd/eris-logger"
+
+	log "github.com/monax/eris-logger"
 )
 
 func GetStringResponse(question string, defalt string, reader *os.File) (string, error) {
